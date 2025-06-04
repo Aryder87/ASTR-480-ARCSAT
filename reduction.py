@@ -33,7 +33,7 @@ def run_reduction(data_dir):
     from flats import create_median_flat
     from science import reduce_science_frame
     from ptc import calculate_gain, calculate_readout_noise
-    from diff_photometry import differential_photometry, plot_light_curves
+    from diff_photometry import differential_photometry, plot_light_curves, plot_phase_curve
 
     science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*_reprojected.fits'))
     dark_list = sorted(pathlib.Path(data_dir).glob('Dark*.fits'))
@@ -75,8 +75,14 @@ def run_reduction(data_dir):
     #call on time observed
     times, diff_flux, comp_fluxes = differential_photometry(image_list, target_radec, comp_radec)
 
+    #print times of observations
+    print(times)
+
     #plot light curves
     plot_light_curves(times, diff_flux, output="lightcurve.png")
+
+    #plot mag vs phase 
+    plot_phase_curve(times, diff_flux, period=0.25, output="phase_curve.png")
 
     #calculate gain    
     gain = calculate_gain(flat_list)

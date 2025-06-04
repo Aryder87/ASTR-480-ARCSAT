@@ -12,19 +12,21 @@ from photutils.centroids import centroid_com
 from astropy.coordinates import Angle
 import glob
 
-
+#Defines a function to calculate centroids given ra and dec using wcs and SkyCoord
 def find_centroid_radec(image_file, ra, dec):
     with fits.open(image_file) as hdul:
         data = hdul[0].data
         wcs = WCS(hdul[0].header)
         skycoord = SkyCoord(ra, dec, unit='deg')
         x, y = wcs.world_to_pixel(skycoord)
-        cutout = data[int(y)-10:int(y)+10, int(x)-10:int(x)+10]
+        cutout = data[int(y)-10:int(y)+10, int(x)-10:int(x)+10] #accounts for an area around each coordinate
         dx, dy = centroid_com(cutout)
         return(x - 10 + dx, y - 10 + dy)
-    
-#sky_rin = 5.18 sky_rout = 10.37, sky_width = sky_rout - sky_rin
-def measure_photometry(image_file, positions, r=5.41, sky_rin=5.18, sky_rout=10.37, sky_width=5.19):
+
+#Define a function which generates aperture and annuli using photutils given a radius, sky_rin/rout, and
+#Calculates the raw, sky, and background flux of our binary star system
+#sky_rin = 17.9 sky_rout = 22, sky_width = sky_rout - sky_rin = 4.1
+def measure_photometry(image_file, positions, r=9.7, sky_rin=17.9, sky_rout=22, sky_width=4.1):
     with fits.open(image_file) as hdul:
         data = hdul[0].data
     apertures = CircularAperture(positions, r=r)
@@ -35,6 +37,7 @@ def measure_photometry(image_file, positions, r=5.41, sky_rin=5.18, sky_rout=10.
     net_flux = raw_flux['aperture_sum'] - back * apertures.area
     return net_flux, raw_flux['aperture_sum']
 
+#Defines a function which performs differnetial photometry using comparison stars passed to it using comp_radec 
 def differential_photometry(image_list, target_radec, comp_radec, aperture=5):
     target_fluxes, times = [], []
     comp_fluxes = [[] for _ in comp_radec]
@@ -66,10 +69,14 @@ def differential_photometry(image_list, target_radec, comp_radec, aperture=5):
             comp_fluxes[i].append(f)
 
     return np.array(times), np.array(target_fluxes), np.array(comp_fluxes)
-    
+
+#A function which plots a light curve from times and diff_flux which were generated in differential_photometry
 def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     times = np.array(times)
-    time_hours = (times - times.min()) * 24 #converting to hours
+
+    # Masks times and diff_flux for values less than -0.02 to try and outlaw 
+    times = times[diff_flux >= -0.02]
+    diff_flux = diff_flux[diff_flux >= -0.02]
 
     plt.figure(figsize=(8,5))
     plt.plot(times, diff_flux, marker='o')
@@ -79,6 +86,48 @@ def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     plt.grid(True)
     plt.savefig(output, dpi=300)
     print(f"Light curve saved to {output}")
+
+def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
+    from astropy.time import Time
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    times = np.array(times)
+    times = Time(times, format='mjd')
+    diff_flux = np.array(diff_flux)
+
+    times = times[diff_flux >= -0.02]
+    diff_flux = diff_flux[diff_flux >= -0.02]
+
+    # Convert to magnitudes
+    mags = -2.5 * np.log10(diff_flux)
+
+    # Fixed T0 from Yang et al. (already in MJD)
+    T0 = 54957.191639  
+
+    # Phase calculation
+    phase = ((times.mjd - T0) / period) % 1
+
+    # Sort by phase
+    sorted_idx = np.argsort(phase)
+    phase = phase[sorted_idx]
+    mags = mags[sorted_idx]
+
+    # Plot
+    plt.figure(figsize=(8, 5))
+    plt.plot(phase, mags, 'o', markersize=4, label='Phase 0–1')
+    plt.plot(phase + 1, mags, 'o', markersize=4, alpha=0.5, label='Phase 1–2')
+    plt.xlabel("Phase")
+    plt.ylabel("Magnitude")
+    plt.title("Phase-folded Light Curve")
+    plt.xlim(0, 2)
+    plt.gca().invert_yaxis()
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(output, dpi=300)
+    print(f"Phase curve saved to {output}")
+
+
 
 
 
