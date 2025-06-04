@@ -74,10 +74,6 @@ def differential_photometry(image_list, target_radec, comp_radec, aperture=5):
 def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     times = np.array(times)
 
-    # Masks times and diff_flux for values less than -0.02 to try and outlaw 
-    times = times[diff_flux >= -0.02]
-    diff_flux = diff_flux[diff_flux >= -0.02]
-
     plt.figure(figsize=(8,5))
     plt.plot(times, diff_flux, marker='o')
     plt.xlabel("Time Since Start of Observation")
@@ -95,9 +91,6 @@ def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
     times = np.array(times)
     times = Time(times, format='mjd')
     diff_flux = np.array(diff_flux)
-
-    times = times[diff_flux >= -0.02]
-    diff_flux = diff_flux[diff_flux >= -0.02]
 
     # Convert to magnitudes
     mags = -2.5 * np.log10(diff_flux)

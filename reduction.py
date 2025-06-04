@@ -63,11 +63,7 @@ def run_reduction(data_dir):
     target_radec = (240.184, 43.145)
 
     #Comparison stars ra and dec
-    comp_radec = (
-        (240.225, 43.1155),
-        (240.2157, 43.1419),
-        (240.1297, 43.2169)
-    )
+    comp_radec = [(240.225, 43.1155)]
 
     #define image_list and call on our reduced images
     image_list = science
