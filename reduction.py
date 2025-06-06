@@ -34,15 +34,20 @@ def run_reduction(data_dir):
     from science import reduce_science_frame
     from ptc import calculate_gain, calculate_readout_noise
     from diff_photometry import differential_photometry, plot_light_curves, plot_phase_curve
+    from center import center_image
 
-    science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*_reprojected.fits'))
+    data_dir = pathlib.Path(data_dir).resolve()
+    science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*.fits'))
     dark_list = sorted(pathlib.Path(data_dir).glob('Dark*.fits'))
     bias_list = sorted(pathlib.Path(data_dir).glob('Bias*.fits'))
     flat_list = sorted(pathlib.Path(data_dir).glob('dome*.fits'))
 
-    median_bias_filename = 'median_bias.fits'
-    median_flat_filename = 'normalized_flat.fits'
-    median_dark_filename = 'median_dark.fits'
+    reduced_dir = pathlib.Path('/Users/ryder47/ASTR-480-ARCSAT').resolve()
+    reduced_dir.mkdir(exist_ok=True) #make sure directory is there
+
+    median_bias_filename = str(reduced_dir / 'median_bias.fits')
+    median_flat_filename = str(reduced_dir / 'normalized_flat.fits')
+    median_dark_filename = str(reduced_dir / 'median_dark.fits')
     
     bias = create_median_bias(bias_list, median_bias_filename)
     dark = create_median_dark(dark_list, median_bias_filename, median_dark_filename)
@@ -59,20 +64,27 @@ def run_reduction(data_dir):
                                          reduced_science_filename=output_file)
         science.append(output_file)
 
+    #Center image after reducing the science images, as to not reduce the images with offset removed bias/dark/flat patterns
+    print('centering images')
+    center_image(reduced_dir)
+
     #Differential Photometry values LPSEB35	240.184(deg)	+43:08(deg)
-    target_radec = (240.184, 43.145)
+    target_radec = (240.1843, 43.144711)
 
     #Comparison stars ra and dec
-    comp_radec = [(240.225, 43.1155)]
+    comp_radec = [(240.225, 43.1301),
+                  (240.1896, 43.123108)]
 
     #define image_list and call on our reduced images
-    image_list = science
+    image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*_reprojected.fits'))
+
+    #ensure images are being reprojected
+    if not image_list:
+        print(f"No reprojected images found in {reduced_dir} with pattern 'reduced_science*'")
+        return
 
     #call on time observed
     times, diff_flux, comp_fluxes = differential_photometry(image_list, target_radec, comp_radec)
-
-    #print times of observations
-    print(times)
 
     #plot light curves
     plot_light_curves(times, diff_flux, output="lightcurve.png")

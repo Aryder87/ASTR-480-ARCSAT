@@ -7,6 +7,7 @@
 from astropy.io import fits
 from astropy.visualization import ImageNormalize, LinearStretch, ZScaleInterval
 from astropy.stats import sigma_clip
+from astropy.wcs import WCS
 from astroscrappy import detect_cosmics
 import numpy as np 
 from matplotlib import pyplot as plt
@@ -14,34 +15,41 @@ from photutils.aperture import CircularAperture, aperture_photometry
 import glob
 
 def reduce_science_frame(
-
     science_filename,
     median_bias_filename,
     median_dark_filename,
     median_flat_filename,
-    reduced_science_filename="reduced_science.fits",
+    reduced_science_filename
 ):
 
     
     science = fits.open(science_filename)
     science_image = fits.getdata(science_filename).astype('f4')
+    header = science[0].header.copy()
     bias = fits.getdata(median_bias_filename).astype('f4')
     flat = fits.getdata(median_flat_filename).astype('f4')
     dark = fits.getdata(median_dark_filename).astype('f4')
     exptime = fits.getheader(science_filename).get('EXPTIME')
 
     reduced_science = (science_image - bias - (dark * exptime))/(flat)
-    reduced_science = reduced_science[100:-100, 100:-100]
+
+    # Crop with WCS update
+    crop_x, crop_y = 100, 100
+    reduced_science = reduced_science[crop_y:-crop_y, crop_x:-crop_x]
+    wcs = WCS(header)
+    wcs.wcs.crpix -= [crop_x, crop_y]  # Adjust reference pixel
+    header.update(wcs.to_header())
+
     mask, cleaned = detect_cosmics(reduced_science)
     reduced_science = cleaned
 
-    norm_orig = ImageNormalize(science_image[100:-100, 100:-100], interval=ZScaleInterval(), stretch=LinearStretch())
+    norm_orig = ImageNormalize(science_image, interval=ZScaleInterval(), stretch=LinearStretch())
     norm = ImageNormalize(reduced_science, interval=ZScaleInterval(), stretch=LinearStretch())
 
     fig, axes = plt.subplots(1, 2, figsize=(8, 12))
-    _ = axes[0].imshow(science_image[100:-100, 100:-100], origin='lower', norm=norm_orig, cmap='YlOrBr_r')
-    plt.close()
-    _ = axes[1].imshow(reduced_science, origin='lower', norm=norm, cmap='YlOrBr_r')
+    axes[0].imshow(science_image, origin='lower', norm=norm_orig, cmap='YlOrBr_r')
+    axes[1].imshow(reduced_science, origin='lower', norm=norm, cmap='YlOrBr_r')
+    #plt.savefig(f"{reduced_science_filename}_compare.png", dpi=300)
     plt.close()
 
     science_hdu = fits.PrimaryHDU(data=reduced_science, header=science[0].header)

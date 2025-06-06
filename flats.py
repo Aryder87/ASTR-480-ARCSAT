@@ -42,22 +42,19 @@ def create_median_flat(flat_list, bias_filename, median_flat_filename, dark_file
                     scale_factor = flat_exptime / dark_exptime
                     flat_corrected -= dark_data * scale_factor
                 else:
-                    raise ValueError("Dark fram exposure time is zero or null")
+                    raise ValueError("Dark frame exposure time is zero or null")
 
             processed_flats.append(flat_corrected)
 
     flat_array_3d = np.array(processed_flats)
-
-    clipped_flats = sigma_clip(flat_array_3d, cenfunc='median', sigma=2.5, axis = 0)
-
+    clipped_flats = sigma_clip(flat_array_3d, cenfunc='median', sigma=3, axis = 0)
     median_flat = np.ma.median(clipped_flats, axis=0)
-
     flat_median_value = np.ma.median(median_flat)
     
     if flat_median_value == 0: 
         raise ValueError("Median flat value is zero or null, can't normalize")
         
-    normalized_flat = median_flat.data / flat_median_value.data
+    normalized_flat = median_flat.data / flat_median_value
 
     hdu = fits.PrimaryHDU(normalized_flat)
     hdu.header['COMMENT'] = 'Normalized median flat frame'

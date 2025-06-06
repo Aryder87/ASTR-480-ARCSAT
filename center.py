@@ -14,13 +14,21 @@ from photutils.aperture import CircularAperture, aperture_photometry
 import glob
 import pathlib
 
-def center_image(data_dir):
+def center_image(reduced_dir):
+
+    #Ensure that data_dir is a pathlib object
+    reduced_dir = pathlib.Path(reduced_dir).resolve()
 
     #Load in the list of images
-    image_list = pathlib.Path(data_dir).glob('LPSEB*.fits')
+    image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*.fits'))
 
     #load in our image used for centering 
-    goodpoint = fits.open('LPSEB35_g_20250530_034359.fits')
+    reference_file = reduced_dir / 'reduced_science1.fits'
+    try:
+        goodpoint = fits.open(reference_file)
+    except FileNotFoundError:
+        print(f"Reference file {reference_file} not found.") #make sure our image is here and found! 
+        return
     wcs_good = WCS(goodpoint[0].header)
 
     # Assume you have:
@@ -34,9 +42,7 @@ def center_image(data_dir):
             input_hdu = hdul[0]
 
             #need to preserve the original observation time
-            original_date_obs = input_hdu.header.get('DATE-OBS')
-
-            
+            original_date_obs = input_hdu.header.get('DATE-OBS')   
             try:
                 reprojected, footprint = reproject_interp(input_hdu, goodpoint[0].header)
             except ValueError as e:
@@ -44,16 +50,15 @@ def center_image(data_dir):
                 continue
 
             new_header = goodpoint[0].header.copy()
-
             if original_date_obs:
                 new_header["DATE-OBS"] = original_date_obs
-
+            
             hdu = fits.PrimaryHDU(reprojected, header=new_header)
-
-            output_filename = f"{filename.with_suffix('').name}_reprojected.fits"
-            hdu.writeto(pathlib.Path(filename).parent / output_filename, overwrite=True)
+            output_filename = f"{filename.stem}_reprojected.fits"
+            hdu.writeto(output_filename, overwrite=True)
 
             print(f"Saved reprojected image to {output_filename}")
 
+    goodpoint.close()
 
 
