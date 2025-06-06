@@ -11,6 +11,29 @@ import glob
 import pathlib
 import gc
 
+def solve_wcs_astrometry(image_path):
+    try:
+        result = subprocess.run([
+            "solve-field",
+            "--overwrite",
+            "--no-plots",
+            "crpix-center",
+            "--scale-units", "arcsecperpix",
+            "--scale-low", "0.3",
+            "--scale-high", "2.5",
+            "--downsample", "2",
+            image_path
+        ], check=True)
+
+        solved_img = str(image_path).replace(".fits", "-wcs.fits")
+        if os.path.exists(solved_img):
+            return solved_img
+        else:
+            return None
+    except subprocess.CalledProcessError as e:
+        print(f"[x] solve-field failed for {image_path}: {e}")
+        return None
+
 def center_image(reduced_dir):
 
     #Ensure that data_dir is a pathlib object
@@ -27,38 +50,40 @@ def center_image(reduced_dir):
     except FileNotFoundError:
         print(f"Reference file {reference_file} not found.") #make sure our image is here and found! 
         return
-
-
-    # Assume you have:
-    # image_list = list of file paths (e.g., ["img1.fits", "img2.fits", ...])
-    # wcs_good = WCS object for the target projection
-    # goodpoint = FITS file opened with fits.open(), whose header defines the target WCS
-
+    
     for filename in image_list:
-        with fits.open(filename) as hdul:
-            # Try hdul[0] — change to [1] if your data is in an extension
-            input_hdu = hdul[0]
-
-            #need to preserve the original observation time
-            original_date_obs = input_hdu.header.get('DATE-OBS')   
-            try:
+        try:
+            with fits.open(filename) as hdul:
+                input_hdu = hdul[0]
+                original_data_obs = input_hdu.header.get('DATE-OBS')
                 reprojected, footprint = reproject_interp(input_hdu, ref_header)
-            except ValueError as e:
-                print(f"Skipping {filename}: {e}")
+        except Exception as e:
+            print(f"[!] Reprojection failed for {filename}: {e}\n  Attemping astrometry.net solution...")
+            solved_img = solve_wcs_astrometry(filename)
+            if not solved_img:
+                print(f"[x] Astrometry solution failed for {filename}")
                 continue
 
-            new_header = ref_header.copy()
-            if original_date_obs:
-                new_header["DATE-OBS"] = original_date_obs
-            
-            hdu = fits.PrimaryHDU(reprojected, header=new_header)
-            output_filename = f"{filename.stem}_reprojected.fits"
-            hdu.writeto(output_filename, overwrite=True)
+            with fits.open(solved_img) as hdul:
+                input_hdu = hdul[0]
+                original_date_obs = input_hdu.header.get('DATE-OBS')
+                try:
+                    reprojected, footprint = reproject_interp(input_hdu, ref_header)
+                except Exception as e:
+                    print(f"[x] Reprojection still failed after WCS solve: {e}")
+                    continue
+        new_header = ref_header.copy()
+        if original_date_obs:
+            new_header["DATE-OBS"] = original_date_obs
 
-            print(f"Saved reprojected image to {output_filename}")
+        hdu = fits.PrimaryHDU(reprojected, header=new_header)
+        output_filename = f"{filename.stem}_reprojected.fits"
+        hdu.writeto(output_filename, overwrite=True)
 
-            del reprojected, footprint, hdu, input_hdu  # Free memory
-            gc.collect()
+        print(f"Saved reprojected image to {output_filename}")
+
+        del reprojected, footprint, hdu, input_hdu  # Free memory
+        gc.collect()
 
     goodpoint.close()
 
