@@ -8,6 +8,8 @@ from astropy.visualization import ZScaleInterval, ImageNormalize, LinearStretch
 from astropy.stats import sigma_clip
 from photutils.aperture import CircularAperture, aperture_photometry, CircularAnnulus
 from photutils.centroids import centroid_com
+import polars
+import seaborn
 import glob
 import gc
 
@@ -129,13 +131,25 @@ def debug_centroid(image_file, x, y, output="centroid_debug.png"):
 #A function which plots a light curve from times and diff_flux which were generated in differential_photometry
 def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     times = np.array(times)
+    diff_flux = np.array(diff_flux)
+
+    #Normalize times to start at 0
+    times -= times.min()
+
+    df = polars.DataFrame({
+        "times": times,
+        "diff_flux": diff_flux
+    })
+
+    seaborn.set_theme(style="whitegrid")
+    
 
     plt.figure(figsize=(8,5))
-    plt.plot(times, diff_flux, marker='o')
+    seaborn.relplot(data=df, kind='line', x='times', y='diff_flux')
     plt.xlabel("Time Since Start of Observation")
     plt.ylabel("Relative Flux Target / Comparison")
     plt.title("Differential Light Curve")
-    plt.grid(True)
+    plt.tight_layout()
     plt.savefig(output, dpi=300)
 
     plt.close('all')
@@ -152,8 +166,10 @@ def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
     if len(times) == 0:
         print("No valid data points after filtering")
 
-    # Convert to magnitudes
-    mags = -2.5 * np.log10(diff_flux)
+    df = polars.DataFrame({
+        "times": times,
+        "diff_flux": diff_flux
+    })
 
     #make sure times are in mjd
     times = Time(times, format='mjd')
@@ -161,18 +177,23 @@ def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
     # Fixed T0 from Yang et al. (already in MJD)
     T0 = 54957.191639  
 
-    # Phase calculation
-    phase = ((times.mjd - T0) / period) % 1
+    # Convert to magnitudes & calculate phase
+    df = df.with_columns([
+        (-2.5 * np.log10(df["diff_flux"])).alias("mags"),
+        (((df["times"] - T0) / period) % 1).alias("phase_1")
+    ])
 
-    # Sort by phase
-    sorted_idx = np.argsort(phase)
-    phase = phase[sorted_idx]
-    mags = mags[sorted_idx]
+    #insert phase 2 into our data fram
+    df = df.with_columns([
+        (df["phase_1"]+1).alias("phase_2")
+    ])
 
+    seaborn.set_theme(style="whitegrid")
+    
     # Plot
     plt.figure(figsize=(8, 5))
-    plt.plot(phase, mags, 'o', markersize=4, label='Phase 0–1')
-    plt.plot(phase + 1, mags, 'o', markersize=4, alpha=0.5, label='Phase 1–2')
+    seaborn.scatterplot(data=df, x='phase_1', y='mags', label='Phase 0–1')
+    seaborn.scatterplot(data=df, x='phase_2', y='mags', label='Phase 1–2')
     plt.xlabel("Phase")
     plt.ylabel("Magnitude")
     plt.title("Phase-folded Light Curve")
