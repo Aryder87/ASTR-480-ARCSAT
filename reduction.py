@@ -4,13 +4,9 @@
 # @Filename: reduction.py
 # @License: BSD 3-clause (http://www.opensource.org/licenses/BSD-3-Clause)
 
-from astropy.io import fits
-from astropy.visualization import ImageNormalize, LinearStretch, ZScaleInterval
-from astropy.stats import sigma_clip
-from astroscrappy import detect_cosmics
+
 import numpy as np 
 from matplotlib import pyplot as plt
-from photutils.aperture import CircularAperture, aperture_photometry
 import glob
 import pathlib
 
@@ -69,11 +65,15 @@ def run_reduction(data_dir):
     center_image(reduced_dir)
 
     #Differential Photometry values LPSEB35	240.184(deg)	+43:08(deg)
-    target_radec = (240.1843, 43.144711)
+    target_pix = (505.8, 503.7)
+    target_pix = (505.8 - 100, 503.7 - 100) #account for wcs croppinig
+
 
     #Comparison stars ra and dec
-    comp_radec = [(240.225, 43.1301),
-                  (240.1896, 43.123108)]
+    comp_pix = [(483.4, 618.8),
+                  (493.4, 750.0)]
+    comp_pix = [(483.4 - 100, 618.8- 100),
+                  (493.4 - 100, 750.0 - 100)] #account for wcs cropping
 
     #define image_list and call on our reduced images
     image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*_reprojected.fits'))
@@ -84,7 +84,7 @@ def run_reduction(data_dir):
         return
 
     #call on time observed
-    times, diff_flux, comp_fluxes = differential_photometry(image_list, target_radec, comp_radec)
+    times, diff_flux, comp_fluxes = differential_photometry(image_list, target_pix, comp_pix)
 
     #plot light curves
     plot_light_curves(times, diff_flux, output="lightcurve.png")

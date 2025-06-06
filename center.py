@@ -3,16 +3,13 @@
 #To get the stars based off of ra and dec, also see if the previous can be done without aligning the images
 
 from astropy.io import fits
-from astropy.visualization import ImageNormalize, LinearStretch, ZScaleInterval
-from astropy.stats import sigma_clip
-from astroscrappy import detect_cosmics
 from astropy.wcs import WCS
 from reproject import reproject_interp
 import numpy as np 
 from matplotlib import pyplot as plt
-from photutils.aperture import CircularAperture, aperture_photometry
 import glob
 import pathlib
+import gc
 
 def center_image(reduced_dir):
 
@@ -25,11 +22,12 @@ def center_image(reduced_dir):
     #load in our image used for centering 
     reference_file = reduced_dir / 'reduced_science1.fits'
     try:
-        goodpoint = fits.open(reference_file)
+        with fits.open(reference_file) as goodpoint:
+            ref_header = goodpoint[0].header.copy()
     except FileNotFoundError:
         print(f"Reference file {reference_file} not found.") #make sure our image is here and found! 
         return
-    wcs_good = WCS(goodpoint[0].header)
+
 
     # Assume you have:
     # image_list = list of file paths (e.g., ["img1.fits", "img2.fits", ...])
@@ -44,12 +42,12 @@ def center_image(reduced_dir):
             #need to preserve the original observation time
             original_date_obs = input_hdu.header.get('DATE-OBS')   
             try:
-                reprojected, footprint = reproject_interp(input_hdu, goodpoint[0].header)
+                reprojected, footprint = reproject_interp(input_hdu, ref_header)
             except ValueError as e:
                 print(f"Skipping {filename}: {e}")
                 continue
 
-            new_header = goodpoint[0].header.copy()
+            new_header = ref_header.copy()
             if original_date_obs:
                 new_header["DATE-OBS"] = original_date_obs
             
@@ -58,6 +56,9 @@ def center_image(reduced_dir):
             hdu.writeto(output_filename, overwrite=True)
 
             print(f"Saved reprojected image to {output_filename}")
+
+            del reprojected, footprint, hdu, input_hdu  # Free memory
+            gc.collect()
 
     goodpoint.close()
 
