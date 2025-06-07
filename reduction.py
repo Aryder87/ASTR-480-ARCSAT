@@ -9,9 +9,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 import glob
 import pathlib
+import os
 
 
-def run_reduction(data_dir):
+def run_reduction(data_dir, skip=False, save_npy=False):
     """This function must run the entire CCD reduction process. You can implement it
     in any way that you want but it must perform a valid reduction for the two
     science frames in the dataset using the functions that you have implemented in
@@ -32,13 +33,13 @@ def run_reduction(data_dir):
     from diff_photometry import differential_photometry, plot_light_curves, plot_phase_curve
     from center import center_image
 
-    data_dir = pathlib.Path(data_dir).resolve()
+    data_dir = pathlib.Path(data_dir)
     science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*.fits'))
     dark_list = sorted(pathlib.Path(data_dir).glob('Dark*.fits'))
     bias_list = sorted(pathlib.Path(data_dir).glob('Bias*.fits'))
     flat_list = sorted(pathlib.Path(data_dir).glob('dome*.fits'))
 
-    reduced_dir = pathlib.Path('/Users/ryder47/ASTR-480-ARCSAT').resolve()
+    reduced_dir = pathlib.Path("data").resolve()
     reduced_dir.mkdir(exist_ok=True) #make sure directory is there
 
     median_bias_filename = str(reduced_dir / 'median_bias.fits')
@@ -52,13 +53,16 @@ def run_reduction(data_dir):
 
     science = []
     for i in range(len(science_list)):
-        output_file=f"reduced_science{i+1}.fits"
-        sci_image = reduce_science_frame(science_list[i],
-                                         median_bias_filename,
-                                         median_dark_filename,
-                                         median_flat_filename,
-                                         reduced_science_filename=output_file)
-        science.append(output_file)
+        output_file=f"{str(data_dir)}/reduced_science{i+1}.fits"
+        if os.path.exists(output_file) and skip:
+            print(f"[info] {output_file} already exists. Skipping...")
+        else:
+            sci_image = reduce_science_frame(science_list[i],
+                                            median_bias_filename,
+                                            median_dark_filename,
+                                            median_flat_filename,
+                                            reduced_science_filename=output_file)
+            science.append(output_file)
 
     #Center image after reducing the science images, as to not reduce the images with offset removed bias/dark/flat patterns
     print('centering images')
@@ -99,5 +103,10 @@ def run_reduction(data_dir):
     #calculate readoutnoise
     readout_noise = calculate_readout_noise(bias_list, gain)
     print(f"Readout Noise = {readout_noise:.2f} e-")
+
+    # Save to npy files for future uses
+    if save_npy:
+        np.save("times.npy", times)
+        np.save("diff_flux.npy", diff_flux)
     
     return
