@@ -10,14 +10,22 @@ from matplotlib import pyplot as plt
 import glob
 import pathlib
 import gc
+import subprocess
+import os
 
+
+"""If you are on Mac: install astrometry-net via brew
+
+`brew install astrometry-net`
+
+"""
 def solve_wcs_astrometry(image_path):
     try:
         result = subprocess.run([
             "solve-field",
             "--overwrite",
             "--no-plots",
-            "crpix-center",
+            "--crpix-center",
             "--scale-units", "arcsecperpix",
             "--scale-low", "0.3",
             "--scale-high", "2.5",
@@ -55,7 +63,7 @@ def center_image(reduced_dir):
         try:
             with fits.open(filename) as hdul:
                 input_hdu = hdul[0]
-                original_data_obs = input_hdu.header.get('DATE-OBS')
+                original_date_obs = input_hdu.header.get('DATE-OBS')
                 reprojected, footprint = reproject_interp(input_hdu, ref_header)
         except Exception as e:
             print(f"[!] Reprojection failed for {filename}: {e}\n  Attemping astrometry.net solution...")
@@ -77,7 +85,7 @@ def center_image(reduced_dir):
             new_header["DATE-OBS"] = original_date_obs
 
         hdu = fits.PrimaryHDU(reprojected, header=new_header)
-        output_filename = f"{filename.stem}_reprojected.fits"
+        output_filename = f"{reduced_dir}/{filename.stem}_reprojected.fits"
         hdu.writeto(output_filename, overwrite=True)
 
         print(f"Saved reprojected image to {output_filename}")
