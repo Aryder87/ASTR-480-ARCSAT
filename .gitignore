@@ -1,3 +1,6 @@
 *.fits
 *.png
 *.pyc
+data/
+*.DS_Store
+*.npy
