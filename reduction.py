@@ -32,7 +32,6 @@ def run_reduction(data_dir, skip=False, save_npy=False):
     from ptc import calculate_gain, calculate_readout_noise
     from diff_photometry import differential_photometry, plot_light_curves, plot_phase_curve
     from center import center_image
-    from analysis import determine_lc_period
 
     data_dir = pathlib.Path(data_dir)
     science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*.fits'))
@@ -98,9 +97,6 @@ def run_reduction(data_dir, skip=False, save_npy=False):
 
     #plot mag vs phase 
     plot_phase_curve(times, diff_flux, period=0.25, output="phase_curve.png")
-
-    #run Lomb Scargle analysis
-    determine_lc_period(times, diff_flux, plot=True)
 
     #calculate gain    
     gain = calculate_gain(flat_list)
