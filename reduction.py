@@ -76,8 +76,7 @@ def run_reduction(data_dir, skip=False, save_npy=False):
     #Comparison stars ra and dec
     comp_pix = [(483.4, 618.8),
                   (493.4, 750.0)]
-    comp_pix = [(483.4 - 100, 618.8- 100),
-                  (493.4 - 100, 750.0 - 100)] #account for wcs cropping
+    comp_pix = [(483.4 - 100, 618.8- 100)] #account for wcs cropping
 
     #define image_list and call on our reduced images
     image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*_reprojected.fits'))
