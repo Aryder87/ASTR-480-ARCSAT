@@ -13,6 +13,9 @@ def determine_lc_period(times, fluxes, plot=False):
 
     best_freq = frequency[np.argmax(power)]
 
+    if not hasattr(best_freq, 'unit'):
+        best_freq = best_freq / u.day
+
     period = 1/best_freq
 
     # The actual period is twice the period of the periodiogram

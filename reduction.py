@@ -32,6 +32,7 @@ def run_reduction(data_dir, skip=False, save_npy=False):
     from ptc import calculate_gain, calculate_readout_noise
     from diff_photometry import differential_photometry, plot_light_curves, plot_phase_curve
     from center import center_image
+    from analysis import determine_lc_period
 
     data_dir = pathlib.Path(data_dir)
     science_list = sorted(pathlib.Path(data_dir).glob('LPSEB*.fits'))
@@ -75,8 +76,11 @@ def run_reduction(data_dir, skip=False, save_npy=False):
 
     #Comparison stars ra and dec
     comp_pix = [(483.4, 618.8),
-                  (493.4, 750.0)]
-    comp_pix = [(483.4 - 100, 618.8- 100)] #account for wcs cropping
+                (668.186, 204.731),
+                (495.8, 752)]
+    comp_pix = [(483.4 - 100, 618.8- 100),
+                (668.186 - 100, 204.731 - 100),
+                (495.8 - 100, 752 - 100)] #account for wcs cropping
 
     #define image_list and call on our reduced images
     image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*_reprojected.fits'))
@@ -94,6 +98,9 @@ def run_reduction(data_dir, skip=False, save_npy=False):
 
     #plot mag vs phase 
     plot_phase_curve(times, diff_flux, period=0.25, output="phase_curve.png")
+
+    #run Lomb Scargle analysis
+    determine_lc_period(times, diff_flux, plot=True)
 
     #calculate gain    
     gain = calculate_gain(flat_list)
