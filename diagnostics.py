@@ -54,7 +54,7 @@ def plot_diagnostics(mjd, airmass, fwhm, background):
     df = polars.DataFrame({
         "MJD": mjd[mask],
         "Airmass": airmass[mask],
-        "FWHM": airmass[mask],
+        "FWHM": fwhm[mask],
         "SkyBack": background[mask]
     }).sort("MJD")
 
@@ -77,6 +77,12 @@ def plot_diagnostics(mjd, airmass, fwhm, background):
     axs[2].set_ylabel("Background level")
     axs[2].set_xlabel("MJD")
     axs[2].set_title("Sky Background over Time")
+
+    ecl_start = 60825.18
+    ecl_end   = 60825.23
+
+    for ax in axs:
+        ax.axvspan(ecl_start, ecl_end, color='orange', alpha=0.2, label='Eclipse')
 
     plt.tight_layout()
     plt.savefig("diagnostics.png")
