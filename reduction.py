@@ -64,6 +64,14 @@ def run_reduction(data_dir, skip=False, save_npy=False):
                                             reduced_science_filename=output_file)
             science.append(output_file)
 
+    #calculate gain    
+    gain = calculate_gain(flat_list)
+    print(f"Gain = {gain:.2f} e-/ADU")
+
+    #calculate readoutnoise
+    readout_noise = calculate_readout_noise(bias_list, gain)
+    print(f"Readout Noise = {readout_noise:.2f} e-")
+
     #Center image after reducing the science images, as to not reduce the images with offset removed bias/dark/flat patterns
     print('centering images')
     center_image(reduced_dir)
@@ -97,14 +105,6 @@ def run_reduction(data_dir, skip=False, save_npy=False):
 
     #plot mag vs phase 
     plot_phase_curve(times, diff_flux, period=0.25, output="phase_curve.png")
-
-    #calculate gain    
-    gain = calculate_gain(flat_list)
-    print(f"Gain = {gain:.2f} e-/ADU")
-
-    #calculate readoutnoise
-    readout_noise = calculate_readout_noise(bias_list, gain)
-    print(f"Readout Noise = {readout_noise:.2f} e-")
 
     # Save to npy files for future uses
     if save_npy:
