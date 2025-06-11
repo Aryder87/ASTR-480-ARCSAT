@@ -14,7 +14,7 @@ import glob
 import gc
 
 #Defines a function to calculate centroids given ra and dec using wcs and SkyCoord
-def find_centroid_radec(image_file, x, y):
+def find_centroid_pixel(image_file, x, y):
     with fits.open(image_file) as hdul:
         data = hdul[0].data
     print(f"Image {image_file}: Initial x={x:.2f}, y={y:.2f}, Shape={data.shape}")
