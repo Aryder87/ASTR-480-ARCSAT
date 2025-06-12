@@ -60,7 +60,7 @@ def measure_photometry(image_file, positions, r=9.7, sky_rin=17.9, sky_rout=22, 
 
 #Defines a function which performs differnetial photometry using comparison stars passed to it using comp_radec 
 def differential_photometry(image_list, target_pix, comp_pix, aperture=5, save_npy=False):
-    target_fluxes, times = [], []
+    target_fluxes, times, target_flux_nocomp = [], [], []
     comp_fluxes = [[] for _ in comp_pix]
 
     for img in image_list:
@@ -94,7 +94,7 @@ def differential_photometry(image_list, target_pix, comp_pix, aperture=5, save_n
         target_flux = target_flux_clipped[0]
         comp_mean = np.mean(sigma_clip(net_flux[1:], sigma=3, maxiters=3))
         target_fluxes.append(target_flux / comp_mean)
-        raw_target_flux = target_flux
+        target_flux_nocomp.append(target_flux)
         time = Time(fits.getheader(img)['DATE-OBS']).mjd
         times.append(time)
 
@@ -107,9 +107,9 @@ def differential_photometry(image_list, target_pix, comp_pix, aperture=5, save_n
         gc.collect()
 
         if save_npy:
-            np.save("raw_fluxs.npy", raw_target_flux)
+            np.save("target_flux_nocomp.npy", target_flux_nocomp)
 
-    return np.array(times), np.array(target_fluxes), np.array(comp_fluxes), np.array(raw_target_flux)
+    return np.array(times), np.array(target_fluxes), np.array(comp_fluxes), np.array(target_flux_nocomp)
 
 #A function which plots centroids for our target and comparison stars 
 def debug_centroid(image_file, x, y, output="centroid_debug.png"):
