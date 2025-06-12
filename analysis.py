@@ -66,7 +66,7 @@ def fit_trapezoids(times, fluxes, period = 0.25, T0 = 54957.191639, plot=False):
     phase, flux = phase[sort], fluxes[sort]
 
     #guess numbers for our trapezoid_model, i.e. center, mid, depth, ingress_egress
-    guess_primary = [0.3, 0.5, 0.2, 0.01] #we know depth is ~ 0.75 mag (Yang et al. 2009) = 0.5
+    guess_primary = [0.3, 0.5, 0.2, 0.02] #we know depth is ~ 0.75 mag (Yang et al. 2009) = 0.5
     mask_primary = np.abs(phase - guess_primary[0]) < 0.5
 
     popt1, pcov1 = curve_fit(
@@ -118,7 +118,11 @@ def calc_ingress_egress(eclipse_params, period_days):
 if __name__ == "__main__":
 
     times = np.load("times.npy") 
-    fluxes = np.load("diff_flux.npy")    
+    fluxes = np.load("diff_flux.npy") 
+
+    # Quick diagnostic: estimate eclipse depth directly from raw fluxes
+    mag_depth_direct = -2.5 * np.log10(np.min(fluxes) / np.max(fluxes))
+    print(f"[Direct from data] Estimated mag drop: {mag_depth_direct:.3f} mag")   
 
     lc_period = determine_lc_period(times, fluxes, plot=True)
     print(lc_period)
@@ -163,7 +167,7 @@ if __name__ == "__main__":
         fitted_traps["primary"]["depth"],
         fitted_traps["primary"]["duration_days"] / period_days,
         fitted_traps["primary"]["ingress_minutes"] / (24 * 60 * period_days)
-    )
+    ) 
 
     # Plot clean phase model with ingress/egress durations
     plt.figure(figsize=(10, 5))

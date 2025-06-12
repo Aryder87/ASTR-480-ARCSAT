@@ -22,7 +22,7 @@ Mak sure to go into the astrometry/data to download the necessary index files to
 solve for the images that could not be solved.
 
 """
-def solve_wcs_astrometry(image_path, index_dir="astrometry/data"):
+def solve_wcs_astrometry(image_path, index_dir="astrometry/index"):
     """
     Solve the WCS using astrometry.net solve-field, with index_dir = 
     location the downloaded index files
