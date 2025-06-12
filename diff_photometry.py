@@ -9,6 +9,7 @@ from astropy.stats import sigma_clip
 from photutils.aperture import CircularAperture, aperture_photometry, CircularAnnulus
 from photutils.centroids import centroid_com
 import polars
+import pathlib
 import seaborn
 import glob
 import gc
@@ -58,14 +59,14 @@ def measure_photometry(image_file, positions, r=9.7, sky_rin=17.9, sky_rout=22, 
     return net_flux, raw_flux['aperture_sum']
 
 #Defines a function which performs differnetial photometry using comparison stars passed to it using comp_radec 
-def differential_photometry(image_list, target_pix, comp_pix, aperture=5):
+def differential_photometry(image_list, target_pix, comp_pix, aperture=5, save_npy=False):
     target_fluxes, times = [], []
     comp_fluxes = [[] for _ in comp_pix]
 
     for img in image_list:
         print(f"\nProcessing image: {img}")
-        target_xy = find_centroid_radec(img, *target_pix)
-        comp_xy = [find_centroid_radec(img, *pix) for pix in comp_pix]
+        target_xy = find_centroid_pixel(img, *target_pix)
+        comp_xy = [find_centroid_pixel(img, *pix) for pix in comp_pix]
 
         # Check if any centroids failed
         if target_xy is None or any(c is None for c in comp_xy):
@@ -88,11 +89,12 @@ def differential_photometry(image_list, target_pix, comp_pix, aperture=5):
         target_flux_clipped = sigma_clip([net_flux[0]], sigma=3, maxiters=3)
         if target_flux_clipped.mask[0]:
             print(f"skipping outlier target flux in {img}")
-            debug_centroid(img, *target_radec, f"centroid_target{img.name}.png")
+            debug_centroid(img, *target_pix, f"centroid_target{img.name}.png")
             continue
         target_flux = target_flux_clipped[0]
         comp_mean = np.mean(sigma_clip(net_flux[1:], sigma=3, maxiters=3))
         target_fluxes.append(target_flux / comp_mean)
+        raw_target_flux = target_flux
         time = Time(fits.getheader(img)['DATE-OBS']).mjd
         times.append(time)
 
@@ -104,8 +106,10 @@ def differential_photometry(image_list, target_pix, comp_pix, aperture=5):
         del net_flux, comp_mean, target_flux_clipped, target_flux
         gc.collect()
 
+        if save_npy:
+            np.save("raw_fluxs.npy", raw_target_flux)
 
-    return np.array(times), np.array(target_fluxes), np.array(comp_fluxes)
+    return np.array(times), np.array(target_fluxes), np.array(comp_fluxes), np.array(raw_target_flux)
 
 #A function which plots centroids for our target and comparison stars 
 def debug_centroid(image_file, x, y, output="centroid_debug.png"):
@@ -133,9 +137,6 @@ def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     times = np.array(times)
     diff_flux = np.array(diff_flux)
 
-    #Normalize times to start at 0
-    times -= times.min()
-
     df = polars.DataFrame({
         "times": times,
         "diff_flux": diff_flux
@@ -145,8 +146,8 @@ def plot_light_curves(times, diff_flux, output="lightcurve.png"):
     
 
     plt.figure(figsize=(8,5))
-    seaborn.relplot(data=df, kind='line', x='times', y='diff_flux')
-    plt.xlabel("Time Since Start of Observation")
+    seaborn.scatterplot(data=df, x='times', y='diff_flux')
+    plt.xlabel("Time of Obsevation (MJD)")
     plt.ylabel("Relative Flux Target / Comparison")
     plt.title("Differential Light Curve")
     plt.tight_layout()
@@ -206,11 +207,32 @@ def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
     plt.close('all')
     print(f"Phase curve saved to {output}")
 
-
-
-
-
-
-
-
     
+
+
+if __name__ == "__main__":
+
+    reduced_dir = pathlib.Path("data").resolve()
+    
+    #Differential Photometry values LPSEB35	240.184(deg)	+43:08(deg)
+    target_pix = (505.8, 503.7)
+    target_pix = (505.8 - 100, 503.7 - 100) #account for wcs croppinig
+
+
+    #Comparison stars ra and dec
+    comp_pix = [(483.4, 618.8),
+                (668.186, 204.731),
+                (495.8, 752)]
+    comp_pix = [(483.4 - 100, 618.8- 100),
+                (668.186 - 100, 204.731 - 100),
+                (495.8 - 100, 752 - 100)] #account for wcs cropping
+
+    #define image_list and call on our reduced images
+    image_list = sorted(pathlib.Path(reduced_dir).glob('reduced_science*_reprojected.fits'))
+
+    #ensure images are being reprojected
+    if not image_list:
+        print(f"No reprojected images found in {reduced_dir} with pattern 'reduced_science*'")
+
+    #call on time observed
+    times, diff_flux, comp_fluxes, raw_flux = differential_photometry(image_list, target_pix, comp_pix, save_npy=True)

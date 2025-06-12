@@ -60,7 +60,7 @@ def trapezoid_model(phase, mid, depth, duration, ingress):
             flux[i] = 1 - depth * (1 - (ph - egress_start) / ingress)
     return flux
 
-def fit_trapezoids(times, fluxes, period = 0.25, T0 = 54957.191639, plot=True):
+def fit_trapezoids(times, fluxes, period = 0.25, T0 = 54957.191639, plot=False):
     phase = fold_time(times, period, T0)
     sort = np.argsort(phase)
     phase, flux = phase[sort], fluxes[sort]
@@ -73,23 +73,13 @@ def fit_trapezoids(times, fluxes, period = 0.25, T0 = 54957.191639, plot=True):
         trapezoid_model, phase[mask_primary], flux[mask_primary],
         p0 = guess_primary
     )
-
-    if plot:
-        phase_fit = np.linspace(-0.5, 0.8, 1000)
-        plt.figure(figsize=(10,5))
-        plt.scatter(phase, flux, s=10, label='Data', alpha=0.6)
-        plt.plot(phase_fit, trapezoid_model(phase_fit, *popt1), label='Primary Fit', color='red')
-        plt.xlabel('Phase')
-        plt.ylabel('Relative Flux')
-        plt.xlim(-0.1, 0.8)
-        plt.title('Trapezoidal Eclipse Fits')
-        plt.legend()
-        plt.grid()
-        plt.tight_layout()
-        plt.close()
     
     ingress_min = popt1[3] * period * 24 * 60 
     egress_min = ingress_min
+
+    # Compute ingress and egress phases
+    ingress_phase = popt1[0] - popt1[2]/2
+    egress_phase = popt1[0] + popt1[2]/2
 
     return{
         "primary": {
@@ -99,6 +89,8 @@ def fit_trapezoids(times, fluxes, period = 0.25, T0 = 54957.191639, plot=True):
             "duration_days": period * popt1[2],
             "ingress_minutes": ingress_min,
             "egress_minutes": egress_min,
+            "ingress_phase": ingress_phase,
+            "egress_phase": egress_phase,
         }
     }
 
@@ -123,127 +115,10 @@ def calc_ingress_egress(eclipse_params, period_days):
         print(f" Egress MJD: {egress_mjd:.5f}")
         print()
 
-def trapezoid_in_time_model(times, mid_time, depth, duration, ingress):
-    flux = np.ones_like(times)
-    ingress_start = mid_time - duration / 2
-    ingress_end = ingress_start + ingress
-    egress_start = mid_time + duration / 2 - ingress
-    egress_end = mid_time + duration / 2
-
-    ramp_up = (ingress_start <= times) & (times < ingress_end)
-    flat = (ingress_end <= times) & (times < egress_start)
-    ramp_down = (egress_start <= times) & (times < egress_end)
-
-    flux[ramp_up] = 1 - depth * (times[ramp_up] - ingress_start) / ingress
-    flux[flat] = 1 - depth
-    flux[ramp_down] = 1 - depth * (1 - (times[ramp_down] - egress_start) / ingress)
-
-    return flux
-
-
-def plot_phase_and_time_fits(times, fluxes, period_days, 
-                             T0, phase_fit_params, time_fit_params):
-    # Phase-domain plot
-    phase = fold_time(times, period_days, T0)
-    sorted_phase_idx = np.argsort(phase)
-    phase_sorted = phase[sorted_phase_idx]
-    flux_sorted = fluxes[sorted_phase_idx]
-
-    phase_model = np.linspace(-0.5, 0.8, 1000)
-    phase_model_flux = trapezoid_model(
-        phase_model,
-        phase_fit_params['mid_phase'],
-        phase_fit_params['depth'],
-        phase_fit_params['duration_days'] / period_days,
-        phase_fit_params['ingress_minutes'] / (24 * 60 * period_days)
-    )
-
-    tmin, tmax = times.min(), times.max()
-    tgrid = np.linspace(tmin, tmax, 500)
-
-    ingress_days = time_fit_params["ingress_minutes"] / (24*60)
-
-    model_grid = trapezoid_in_time_model(
-        tgrid,
-        time_fit_params["mid_time_mjd"],
-        time_fit_params["depth"],
-        time_fit_params["duration_days"],
-        ingress_days
-    )
-
-    # Plot
-    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
-
-    # Phase-domain
-    axs[0].scatter(phase_sorted, flux_sorted, s=5, alpha=0.5, label='Observed')
-    axs[0].plot(phase_model, phase_model_flux, color='red', lw=2, label='Phase Trapezoid')
-    axs[0].set_xlabel("Phase")
-    axs[0].set_ylabel("Flux")
-    axs[0].set_xlim(-0.1, 0.8)
-    axs[0].set_title("Phase-Domain Trapezoid Fit")
-    axs[0].legend()
-    axs[0].grid(True)
-
-    # Time-domain
-    axs[1].scatter(times, fluxes, s=5, alpha=0.5, label='Observed')
-    axs[1].plot(tgrid, model_grid, color='green', lw=2, label='Time Trapezoid')
-    axs[1].set_xlabel("Time (MJD)")
-    axs[1].set_ylabel("Flux")
-    axs[1].set_title("Time-Domain Trapezoid Fit")
-    axs[1].legend()
-    axs[1].grid(True)
-
-    plt.tight_layout()
-    plt.savefig("trapezoid_phase_vs_time_fit.png")
-    plt.close()
-
-
-def fit_time_domain_trapezoid(times, fluxes, period, T0, trap_phase_fit):
-    # Convert trapezoid phase-fit parameters to time-based initial guesses
-    mid_phase = trap_phase_fit["mid_phase"]
-    depth = trap_phase_fit["depth"]
-    duration_days = trap_phase_fit["duration_days"]
-    ingress_minutes = trap_phase_fit["ingress_minutes"]
-    ingress_days = ingress_minutes / (24 * 60)
-
-    # Estimate mid-eclipse time based on reference T0
-    mid_time_guess = T0 + mid_phase * period
-
-    # Initial parameter guess: [mid_time, depth, duration_days, ingress_days]
-    p0 = [mid_time_guess, depth, duration_days, ingress_days]
-
-    print("\n[DEBUG] Initial trapezoid parameter guess:")
-    print(f" Mid time: {mid_time_guess:.5f}")
-    print(f" Depth: {depth:.3f}")
-    print(f" Duration: {duration_days:.5f}")
-    print(f" Ingress: {ingress_days:.5f}")
-
-    try:
-        popt, pcov = curve_fit(trapezoid_in_time_model, times, fluxes, p0=p0)
-        mid_time, depth_fit, duration_fit, ingress_fit = popt
-        ingress_minutes_fit = ingress_fit * 24 * 60
-
-        print("\nTime-domain Trapezoid Fit:")
-        print(f"  Mid-eclipse Time (MJD): {mid_time:.6f}")
-        print(f"  Depth: {depth_fit:.3f}")
-        print(f"  Duration: {duration_fit:.4f} days")
-        print(f"  Ingress/Egress: {ingress_minutes_fit:.2f} minutes")
-
-        return {
-            "mid_time_mjd": mid_time,
-            "depth": depth_fit,
-            "duration_days": duration_fit,
-            "ingress_minutes": ingress_minutes_fit,
-        }
-    except RuntimeError:
-        print(" Fit did not converge.")
-        return None
-
 if __name__ == "__main__":
 
     times = np.load("times.npy") 
-    fluxes = np.load("diff_flux.npy") 
-    fluxes = fluxes / np.median(fluxes)   
+    fluxes = np.load("diff_flux.npy")    
 
     lc_period = determine_lc_period(times, fluxes, plot=True)
     print(lc_period)
@@ -252,26 +127,88 @@ if __name__ == "__main__":
     # First pass: crude T0
     T0_initial = 54957.191639  # or use times.min() if you prefer
 
+    #fit trapezoid before normalizing to get a better T0 guess/mid phase
     fitted_traps = fit_trapezoids(times, fluxes, period=period_days, T0=T0_initial, plot=True)
 
     # Now estimate better T0 from min flux
     T0_guess = times[np.argmin(fluxes)] - fitted_traps["primary"]["mid_phase"] * period_days
     print(f"[INFO] Estimated modern T0 from min flux: {T0_guess:.5f}")
 
-    # Refit with improved T0
+    # Normalize using only out-of-eclipse baseline
+    phase = fold_time(times, period_days, T0_guess)
+    mid = fitted_traps["primary"]["mid_phase"]
+    dur = fitted_traps["primary"]["duration_days"] / period_days
+
+    # Mask out eclipse
+    mask_out_of_eclipse = np.abs(phase - mid) > dur / 2 + 0.05
+
+    # Normalize only to baseline
+    baseline_median = np.median(fluxes[mask_out_of_eclipse])
+    fluxes = fluxes / baseline_median
+
+    # Refit with improved T0 and normalized fluxes
     fitted_traps = fit_trapezoids(times, fluxes, period=period_days, T0=T0_guess, plot=True)
 
-    trap_time_fit = fit_time_domain_trapezoid(
-        times, fluxes, period_days, T0=T0_guess, trap_phase_fit=fitted_traps["primary"]
+    #Recompute phase for plotting, in eclipse times 
+    phase = fold_time(times, period_days, T0_guess)
+    sort = np.argsort(phase)
+    phase_sorted = phase[sort]
+    flux_sorted = fluxes[sort]
+
+    # Model curve
+    phase_model = np.linspace(-0.1, 0.8, 1000)
+    model_flux = trapezoid_model(
+        phase_model,
+        fitted_traps["primary"]["mid_phase"],
+        fitted_traps["primary"]["depth"],
+        fitted_traps["primary"]["duration_days"] / period_days,
+        fitted_traps["primary"]["ingress_minutes"] / (24 * 60 * period_days)
     )
 
-    if trap_time_fit:
-        plot_phase_and_time_fits(
-            times, fluxes,
-            period_days, T0=T0_guess,
-            phase_fit_params=fitted_traps["primary"],
-            time_fit_params=trap_time_fit
-        )
+    # Plot clean phase model with ingress/egress durations
+    plt.figure(figsize=(10, 5))
+    plt.scatter(phase_sorted, flux_sorted, s=10, alpha=0.6, label='Data')
+    plt.plot(phase_model, model_flux, color='red', label='Trapezoid Model')
+
+    # Compute trapezoid edges
+    duration = fitted_traps["primary"]["duration_days"] / period_days
+    ingress_duration = fitted_traps["primary"]["ingress_minutes"] / (24 * 60 * period_days)
+
+    ingress_start = fitted_traps["primary"]["mid_phase"] - duration/2
+    ingress_end   = ingress_start + ingress_duration
+    egress_end    = fitted_traps["primary"]["mid_phase"] + duration/2
+    egress_start  = egress_end - ingress_duration
+
+    # Shade ingress and egress
+    plt.axvspan(ingress_start, ingress_end, color='orange', alpha=0.2, label='Ingress Zone')
+    plt.axvspan(egress_start, egress_end, color='purple', alpha=0.2, label='Egress Zone')
+
+    # Add arrows or text for clarity (optional)
+    plt.text(ingress_start, 1.01, f"Start", ha='center', fontsize=8, color='darkorange')
+    plt.text(ingress_end, 1.01, f"End", ha='center', fontsize=8, color='darkorange')
+    plt.text(egress_start, 1.01, f"Start", ha='center', fontsize=8, color='purple')
+    plt.text(egress_end, 1.01, f"End", ha='center', fontsize=8, color='purple')
+
+    # Main plot formatting
+    plt.xlabel("Phase")
+    plt.ylabel("Relative Flux")
+    plt.xlim(-0.1, 0.7)
+    plt.ylim(0.65, 1.15)
+    plt.title("Trapezoidal Eclipse Fit (with Ingress/Egress Zones)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("Trapezoidal_Eclipse_Fit_Normalized.png", dpi=300)
+    plt.close()
+
+    duration_days = fitted_traps["primary"]["duration_days"]
+    duration_minutes = duration_days * 24 * 60 
+    duration_hours = duration_days * 24
+
+    print(f"\n Eclipse Duration:")
+    print(f" In days:   {duration_days:.5f}")
+    print(f" In hours:  {duration_hours:.2f}")
+    print(f" In minutes:{duration_minutes:.2f}")
 
     print("Fitted Trapezoid parameters")
     print(fitted_traps)
