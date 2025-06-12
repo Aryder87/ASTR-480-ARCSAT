@@ -181,7 +181,7 @@ def plot_phase_curve(times, diff_flux, period, output="phase_curve.png"):
     # Convert to magnitudes & calculate phase
     df = df.with_columns([
         (-2.5 * np.log10(df["diff_flux"])).alias("mags"),
-        (((df["times"] - T0) / period) % 1).alias("phase_1")
+        (((df["times"] - T0) / period + 0.5) % 1).alias("phase_1")
     ])
 
     #insert phase 2 into our data fram
@@ -236,3 +236,6 @@ if __name__ == "__main__":
 
     #call on time observed
     times, diff_flux, comp_fluxes, raw_flux = differential_photometry(image_list, target_pix, comp_pix, save_npy=True)
+
+    #plot mag vs phase
+    plot_phase_curve(times=times, diff_flux=diff_flux, period=0.25, output="phase_curve.png")
